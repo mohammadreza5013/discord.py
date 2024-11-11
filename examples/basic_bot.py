@@ -1,79 +1,103 @@
-# This example requires the 'members' and 'message_content' privileged intents to function.
+{
+  "api": {
+    "services": ["HandlerService", "StatsService"],
+    "tag": "api"
+  },
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserUplink": true,
+        "statsUserDownlink": true
+      }
+    }
+  },
+  "stats": {},
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": ["api"],
+        "outboundTag": "api"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 8080,
+      "protocol": "http",
+      "tag": "api"
+    }
+  ]
+}
 
-import discord
-from discord.ext import commands
-import random
+با اجرای این تنظیمات، API V2Ray روی پورت 8080 در دسترس خواهد بود.
 
-description = '''An example bot to showcase the discord.ext.commands extension
-module.
+قدم 2: کد ربات تلگرام
 
-There are a number of utility commands being showcased here.'''
+فایل bot.py را ایجاد کنید و کد زیر را در آن قرار دهید:
 
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
+import telebot
+import requests
+import json
 
-bot = commands.Bot(command_prefix='?', description=description, intents=intents)
+# تو7878835113:AAGxga0lE1kI1hPK30W-47dqVQ-JJG3PLi8کن ربات تلگرام
+BOT_TOKEN = 'YOUR_BOT_TOKEN'
+bot = telebot.TeleBot(BOT_TOKEN)
 
+# آدرس API V2Ray
+V2RAY_API_URL = 'http://127.0.0.1:8080'
 
-@bot.event
-async def on_ready():
-    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    print('------')
+# دستور اضافه کردن کاربر جدید
+def add_user(uuid, email, level=0, alterId=64):
+    payload = {
+        "method": "add",
+        "params": {
+            "client": {
+                "id": uuid,
+                "alterId": alterId,
+                "email": email,
+                "level": level
+            }
+        },
+        "tag": "api"
+    }
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(f"{V2RAY_API_URL}/xrayapi/command", headers=headers, data=json.dumps(payload))
+    return response.json()
 
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "به ربات مدیریت V2Ray خوش آمدید!")
 
-@bot.command()
-async def add(ctx, left: int, right: int):
-    """Adds two numbers together."""
-    await ctx.send(left + right)
-
-
-@bot.command()
-async def roll(ctx, dice: str):
-    """Rolls a dice in NdN format."""
+@bot.message_handler(commands=['adduser'])
+def handle_adduser(message):
     try:
-        rolls, limit = map(int, dice.split('d'))
-    except Exception:
-        await ctx.send('Format has to be in NdN!')
-        return
+        args = message.text.split()
+        if len(args) < 3:
+            bot.reply_to(message, "لطفا دستور را به صورت صحیح وارد کنید:\n/adduser <email> <uuid>")
+            return
+        
+        email = args[1]
+        uuid = args[2]
 
-    result = ', '.join(str(random.randint(1, limit)) for r in range(rolls))
-    await ctx.send(result)
+        # اضافه کردن کاربر جدید
+        result = add_user(uuid, email)
+        if result.get("success"):
+            bot.reply_to(message, f"کاربر {email} با موفقیت اضافه شد!")
+        else:
+            bot.reply_to(message, "خطا در اضافه کردن کاربر.")
+    except Exception as e:
+        bot.reply_to(message, f"خطا: {e}")
 
+@bot.message_handler(commands=['help'])
+def send_help(message):
+    bot.reply_to(message, """
+دستورات موجود:
+- /start: شروع
+- /adduser <email> <uuid>: اضافه کردن کاربر جدید
+    """)
 
-@bot.command(description='For when you wanna settle the score some other way')
-async def choose(ctx, *choices: str):
-    """Chooses between multiple choices."""
-    await ctx.send(random.choice(choices))
+if name == "main":
+    print("ربات در حال اجراست...")
+    bot.polling()# This example requires the 'members' and 'message_content' privileged intents to function.
 
-
-@bot.command()
-async def repeat(ctx, times: int, content='repeating...'):
-    """Repeats a message multiple times."""
-    for i in range(times):
-        await ctx.send(content)
-
-
-@bot.command()
-async def joined(ctx, member: discord.Member):
-    """Says when a member joined."""
-    await ctx.send(f'{member.name} joined {discord.utils.format_dt(member.joined_at)}')
-
-
-@bot.group()
-async def cool(ctx):
-    """Says if a user is cool.
-
-    In reality this just checks if a subcommand is being invoked.
-    """
-    if ctx.invoked_subcommand is None:
-        await ctx.send(f'No, {ctx.subcommand_passed} is not cool')
-
-
-@cool.command(name='bot')
-async def _bot(ctx):
-    """Is the bot cool?"""
-    await ctx.send('Yes, the bot is cool.')
-
-
-bot.run('token')
