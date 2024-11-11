@@ -76,4 +76,4 @@ async def _bot(ctx):
     await ctx.send('Yes, the bot is cool.')
 
 
-bot.run('token')
+bot.run('to7878835113:AAGxga0lE1kI1hPK30W-47dqVQ-JJG3PLi8ken')
